@@ -1,2 +1,1 @@
-# Provenant
-A DaaS product 
+# VPP

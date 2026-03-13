@@ -1,11 +1,15 @@
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+import { mock } from "./mock";
+
+const BASE = import.meta.env.VITE_API_URL || "";
+const DEMO = !BASE;
+
 const j = (r: Response) => r.ok ? r.json() : r.json().then(e => Promise.reject(e));
 const get = (p: string) => fetch(`${BASE}${p}`).then(j);
 const post = (p: string, b?: unknown) => fetch(`${BASE}${p}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined }).then(j);
 const del = (p: string) => fetch(`${BASE}${p}`, { method: "DELETE" }).then(j);
 const patch = (p: string, b: unknown) => fetch(`${BASE}${p}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }).then(j);
 
-export const api = {
+const live = {
   sites: {
     list: () => get("/sites"),
     get: (id: string) => get(`/sites/${id}`),
@@ -26,3 +30,5 @@ export const api = {
   briefing: (siteId: string) => get(`/sites/${siteId}/briefing`),
   operationProfiles: () => get("/operation-profiles"),
 };
+
+export const api = DEMO ? mock : live;

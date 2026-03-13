@@ -1,43 +1,50 @@
-# WeatherEdge — ML-Powered Marine Weather Intelligence for Offshore Wind
+# WeatherEdge
 
-Turn weather from a blocker into a planning advantage.
+ML-powered marine weather intelligence for offshore wind operations. Turns raw weather into operation-specific go/no-go decisions.
 
-## What Is This
+## Quick Start
 
-WeatherEdge is an AI-powered operational decision layer for offshore wind farm O&M teams. It translates raw marine weather data into **operation-specific go/no-go recommendations** — telling coordinators not just "what's the wave height" but "can we do a CTV transfer to WTG-47 on Thursday with 92% confidence?"
+```bash
+docker compose up
+```
 
-## The Problem
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
 
-Offshore wind operators lose **$1M–$3M per wind farm per year** to poor weather decisions:
+## Manual Setup
 
-- Generic forecasts that don't account for operation-specific thresholds
-- Conservative no-go calls on days that were actually workable
-- Campaigns launched into deteriorating conditions
-- Optimal work windows that nobody spotted in time
-- No tracking of forecast accuracy — no way to improve
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
 
-## Core Capabilities
+# Frontend
+cd frontend
+npm install
+npm run dev
+```
 
-- **Go/No-Go Engine** — operation-specific recommendations (CTV transfer, crane ops, rope access, etc.) with confidence levels
-- **Weather Window Finder** — "find me the next 8-hour window for a generator swap"
-- **Campaign Planner** — multi-day window reliability for major component swaps
-- **Site Calibration** — ML models that learn forecast biases at each specific location
-- **Accuracy Dashboard** — track how good your forecasts actually are
+Requires PostgreSQL running on `localhost:5432` (db: `weatheredge`, user: `weatheredge`, pass: `weatheredge`).
 
-## Documentation
+## Architecture
 
-- [Product Specification](docs/WEATHEREDGE_PRODUCT_SPEC.md) — full product spec with architecture, ML models, DaaS strategy, MVP plan, go-to-market, and financials
-- [Initial Startup Ideas](docs/STARTUP_IDEAS.md) — early-stage ideation across the offshore wind AI space
+```
+backend/         Python FastAPI — weather ingestion, go/no-go engine, window finder
+frontend/        React + TypeScript — dashboard, briefing, window finder
+docker-compose   PostgreSQL + backend + frontend
+```
 
-## Tech Stack (Planned)
+## Features
 
-| Layer | Technology |
-|---|---|
-| Backend | Python (FastAPI) |
-| ML | PyTorch, LightGBM, scikit-learn |
-| Data Pipeline | Prefect / Airflow |
-| Database | PostgreSQL + TimescaleDB |
-| Weather Data | ECMWF, GFS, Open-Meteo |
-| Frontend | React + TypeScript |
-| Maps | Mapbox GL JS |
-| Hosting | AWS |
+- **Go/No-Go Engine** — CTV transfer, crane ops, rope access, drone inspection, and more
+- **Weather Window Finder** — "find me the next 8-hour window for X"
+- **Daily Briefing** — morning ops briefing with 7-day outlook
+- **Real weather data** — Open-Meteo marine + atmospheric APIs (free, no key needed)
+- **Preset wind farms** — Hornsea 2, Dogger Bank, Borssele, East Anglia ONE
+
+## Docs
+
+- [Product Spec](docs/WEATHEREDGE_PRODUCT_SPEC.md)
+- [Startup Ideas](docs/STARTUP_IDEAS.md)

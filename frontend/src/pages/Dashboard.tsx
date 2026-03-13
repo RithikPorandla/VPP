@@ -1,115 +1,96 @@
 import { useState, useEffect } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Waves, Wind, Eye, Thermometer, CloudRain, Gauge } from "lucide-react";
 import { api } from "../api";
 import { useSite } from "../App";
 
-const D_COLORS: Record<string, string> = { GO: "var(--green)", MARGINAL: "var(--amber)", NO_GO: "var(--red)" };
-const D_BG: Record<string, string> = { GO: "#22c55e", MARGINAL: "#f59e0b", NO_GO: "#ef4444" };
+const DC: Record<string, string> = { GO: "#10b981", MARGINAL: "#f59e0b", NO_GO: "#ef4444" };
+const ICONS: Record<string, any> = { wave_height_m: "Hs", wind_speed_10m_ms: "Ws", wind_gusts_ms: "Gust", visibility_m: "Vis" };
 
 export default function Dashboard() {
   const { site } = useSite();
   const [data, setData] = useState<Record<string, any[]>>({});
-  const [weather, setWeather] = useState<any[]>([]);
+  const [wx, setWx] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hover, setHover] = useState<{ op: string; idx: number } | null>(null);
 
-  const load = () => {
-    if (!site) return;
-    setLoading(true);
-    Promise.all([api.goNoGo(site.id, 72), api.weather.get(site.id, 72)])
-      .then(([g, w]) => { setData(g); setWeather(w); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
-
+  const load = () => { if (!site) return; setLoading(true); Promise.all([api.goNoGo(site.id, 72), api.weather.get(site.id, 72)]).then(([g, w]) => { setData(g); setWx(w); }).finally(() => setLoading(false)); };
   useEffect(load, [site?.id]);
 
-  const refresh = () => {
-    if (!site) return;
-    setLoading(true);
-    api.weather.refresh(site.id).then(load).catch(() => setLoading(false));
-  };
+  const refresh = () => { if (!site) return; setLoading(true); api.weather.refresh(site.id).then(load); };
 
-  if (!site) return <div className="card"><p className="text-muted">Add a site first in Settings.</p></div>;
+  if (!site) return <div className="empty"><Wind size={48}/><h3>No site selected</h3><p>Add a wind farm in Settings to get started.</p></div>;
 
+  const c = wx[0];
   const ops = Object.entries(data);
-  const now = new Date();
-
-  // Current conditions from first weather row
-  const cur = weather[0];
+  const fmt = (d: string) => { const t = new Date(d); return t.toLocaleDateString("en-GB", { weekday: "short" }) + " " + t.getHours() + ":00"; };
 
   return (
     <div>
-      <div className="flex-between mb-6">
-        <h2>Dashboard — {site.name}</h2>
-        <button className="btn flex" onClick={refresh} disabled={loading}>
-          <RefreshCw size={14} className={loading ? "spin" : ""} />{loading ? "Loading..." : "Refresh"}
-        </button>
+      <div className="page-header">
+        <h2>{site.name} <span className="sub">Live Conditions</span></h2>
+        <button className="btn" onClick={refresh} disabled={loading}><RefreshCw size={14}/>{loading ? "Updating..." : "Refresh Weather"}</button>
       </div>
 
-      {cur && (
-        <div className="grid-6 mb-6">
+      {/* Current conditions strip */}
+      {c && (
+        <div className="g g6 mb6">
           {[
-            { l: "Wave Height", v: cur.wave_height_m, u: "m" },
-            { l: "Wind (10m)", v: cur.wind_speed_10m_ms, u: "m/s" },
-            { l: "Gusts", v: cur.wind_gusts_ms, u: "m/s" },
-            { l: "Visibility", v: cur.visibility_m ? (cur.visibility_m / 1000).toFixed(1) : "—", u: "km" },
-            { l: "Temp", v: cur.temperature_c, u: "°C" },
-            { l: "Precip", v: cur.precipitation_mm, u: "mm" },
-          ].map(({ l, v, u }) => (
-            <div className="card" key={l} style={{ textAlign: "center", padding: 12 }}>
-              <div className="text-xs text-muted">{l}</div>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>{v ?? "—"}</div>
-              <div className="text-xs text-muted">{u}</div>
+            { icon: <Waves size={16} className="tcyan"/>, l: "Wave Height", v: c.wave_height_m, u: "m", warn: c.wave_height_m > 1.5 },
+            { icon: <Wind size={16} className="tcyan"/>, l: "Wind (10m)", v: c.wind_speed_10m_ms, u: "m/s", warn: c.wind_speed_10m_ms > 12 },
+            { icon: <Gauge size={16} className="tcyan"/>, l: "Gusts", v: c.wind_gusts_ms, u: "m/s", warn: c.wind_gusts_ms > 15 },
+            { icon: <Eye size={16} className="tcyan"/>, l: "Visibility", v: c.visibility_m ? (c.visibility_m / 1000).toFixed(1) : "—", u: "km", warn: c.visibility_m < 3000 },
+            { icon: <Thermometer size={16} className="tcyan"/>, l: "Temperature", v: c.temperature_c, u: "°C", warn: false },
+            { icon: <CloudRain size={16} className="tcyan"/>, l: "Precipitation", v: c.precipitation_mm, u: "mm/h", warn: c.precipitation_mm > 1 },
+          ].map(({ icon, l, v, u, warn }) => (
+            <div className="card stat" key={l}>
+              <div className="mb1">{icon}</div>
+              <div className="stat-val" style={{ color: warn ? "var(--amber)" : "var(--text)" }}>{v ?? "—"} <span className="stat-unit">{u}</span></div>
+              <div className="stat-label">{l}</div>
             </div>
           ))}
         </div>
       )}
 
+      {/* Operation heatmaps */}
       {ops.map(([opType, hours]) => {
-        const goCount = hours.filter(h => h.decision === "GO").length;
-        const margCount = hours.filter(h => h.decision === "MARGINAL").length;
-        const nogoCount = hours.filter(h => h.decision === "NO_GO").length;
-        const overall = goCount > hours.length * 0.7 ? "GO" : nogoCount > hours.length * 0.7 ? "NO_GO" : "MARGINAL";
+        const g = hours.filter(h => h.decision === "GO").length;
+        const m = hours.filter(h => h.decision === "MARGINAL").length;
+        const n = hours.filter(h => h.decision === "NO_GO").length;
 
         return (
-          <div className="card mb-4" key={opType}>
-            <div className="flex-between mb-2">
+          <div className="card mb4" key={opType}>
+            <div className="flex between mb3">
               <div className="flex">
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: hours[0]?.color }} />
-                <strong>{hours[0]?.operation_label}</strong>
-                <span className={`tag tag-${overall.toLowerCase().replace("_", "-")}`}>{overall.replace("_", " ")}</span>
+                <span className="dot" style={{ background: hours[0]?.color }} />
+                <strong className="tsm">{hours[0]?.operation_label}</strong>
+                {g > hours.length * 0.7 && <span className="tag tag-go">GO</span>}
+                {n > hours.length * 0.7 && <span className="tag tag-no-go">NO GO</span>}
+                {g <= hours.length * 0.7 && n <= hours.length * 0.7 && <span className="tag tag-marginal">MIXED</span>}
               </div>
-              <span className="text-sm text-muted">{goCount}h GO · {margCount}h Marginal · {nogoCount}h No-Go</span>
+              <span className="txs tmuted">{g}h GO · {m}h Marginal · {n}h No-Go</span>
             </div>
-            <div className="timeline-row" style={{ position: "relative" }}>
-              {hours.map((h, i) => {
-                const isHovered = hover?.op === opType && hover?.idx === i;
-                const t = new Date(h.forecast_time);
-                return (
-                  <div key={i} className="timeline-cell"
-                    style={{ background: D_BG[h.decision] || "#475569", opacity: h.decision === "NO_GO" ? 0.4 : 1 }}
-                    onMouseEnter={() => setHover({ op: opType, idx: i })}
-                    onMouseLeave={() => setHover(null)}>
-                    {isHovered && (
-                      <div className="tooltip">
-                        <strong>{t.toLocaleDateString("en-GB", { weekday: "short" })} {t.getHours()}:00</strong><br />
-                        {h.decision} ({h.confidence_pct}%)<br />
-                        {h.limiting_factors?.length ? `Limit: ${h.limiting_factors.join(", ")}` : "All clear"}
-                      </div>
-                    )}
+
+            <div className="heatmap">
+              {hours.map((h, i) => (
+                <div key={i} className="hcell" style={{ background: DC[h.decision], opacity: h.decision === "NO_GO" ? 0.3 : h.decision === "MARGINAL" ? 0.7 : 1 }}>
+                  <div className="tip">
+                    <strong>{fmt(h.forecast_time)}</strong><br/>
+                    {h.decision.replace("_", " ")} · {h.confidence_pct}%
+                    {h.limiting_factors?.length > 0 && <><br/><span style={{color:"var(--red)"}}>Limit: {h.limiting_factors.map((f: string) => ICONS[f] || f).join(", ")}</span></>}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
-            <div className="flex mt-2 text-xs text-muted" style={{ justifyContent: "space-between" }}>
-              <span>Now</span><span>+24h</span><span>+48h</span><span>+72h</span>
+            <div className="haxis">
+              {hours.map((h, i) => {
+                const hr = new Date(h.forecast_time).getHours();
+                return <span key={i}>{hr === 0 ? new Date(h.forecast_time).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : hr % 6 === 0 ? hr + "h" : ""}</span>;
+              })}
             </div>
           </div>
         );
       })}
 
-      {ops.length === 0 && !loading && <div className="card text-muted">No forecast data. Click Refresh to fetch weather.</div>}
+      {ops.length === 0 && !loading && <div className="card tmuted">No forecast data loaded. Click "Refresh Weather" to fetch from Open-Meteo.</div>}
     </div>
   );
 }

@@ -115,7 +115,7 @@ class OperationConfig(Base):
     operation_type = Column(String, nullable=False)
     is_enabled = Column(Boolean, default=True)
     custom_limits = Column(JSON, default=None)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     site = relationship("Site", back_populates="operation_configs")
 

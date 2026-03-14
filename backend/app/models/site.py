@@ -20,8 +20,8 @@ class Site(Base):
     port_name = Column(String, default="")
     is_active = Column(Boolean, default=True)
     metadata_json = Column(JSON, default=dict)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     weather_data = relationship("WeatherForecast", back_populates="site", cascade="all, delete-orphan")
     operation_configs = relationship("OperationConfig", back_populates="site", cascade="all, delete-orphan")

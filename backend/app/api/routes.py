@@ -32,6 +32,7 @@ async def list_sites(db: AsyncSession = Depends(get_db)):
 async def create_site(site_in: SiteCreate, db: AsyncSession = Depends(get_db)):
     site = Site(**site_in.model_dump())
     db.add(site)
+    await db.flush()
 
     for op_type in DEFAULT_OPERATION_PROFILES:
         config = OperationConfig(site_id=site.id, operation_type=op_type, is_enabled=True)

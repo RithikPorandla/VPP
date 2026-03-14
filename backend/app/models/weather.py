@@ -11,8 +11,8 @@ class WeatherForecast(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     site_id = Column(String, ForeignKey("sites.id"), nullable=False)
-    forecast_time = Column(DateTime, nullable=False)
-    ingested_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    forecast_time = Column(DateTime(timezone=True), nullable=False)
+    ingested_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     model_run = Column(String, default="open_meteo")
 
     wave_height_m = Column(Float)
@@ -40,8 +40,8 @@ class WeatherObservation(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     site_id = Column(String, ForeignKey("sites.id"), nullable=False)
-    observed_at = Column(DateTime, nullable=False)
-    recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    observed_at = Column(DateTime(timezone=True), nullable=False)
+    recorded_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     source = Column(String, default="manual")
 
     wave_height_m = Column(Float)

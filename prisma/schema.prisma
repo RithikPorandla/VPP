@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Client {
+  id            String   @id @default(cuid())
+  name          String
+  contactName   String
+  contactEmail  String
+  industry      String
+  brandVoice    String   @default("")
+  status        String   @default("active") // active, paused, churned
+  churnRisk     Float    @default(0)
+  tier          String   @default("standard") // standard, premium, enterprise
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  engagements     Engagement[]
+  messages        ClientMessage[]
+  knowledgeAssets KnowledgeAsset[]
+  invoices        Invoice[]
+  activityLogs    ActivityLog[]
+}
+
+model ServiceProduct {
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  deliverableType   String
+  scope             String
+  turnaroundHours   Int
+  price             Float
+  costEstimate      Float
+  category          String
+  isActive          Boolean  @default(true)
+  templatePrompt    String   @default("")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  engagements Engagement[]
+}
+
+model Engagement {
+  id               String   @id @default(cuid())
+  clientId         String
+  serviceProductId String
+  status           String   @default("proposal") // proposal, active, in_review, completed, cancelled
+  startDate        DateTime @default(now())
+  dueDate          DateTime
+  completedAt      DateTime?
+  totalRevenue     Float
+  totalCost        Float    @default(0)
+  notes            String   @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  client         Client         @relation(fields: [clientId], references: [id])
+  serviceProduct ServiceProduct @relation(fields: [serviceProductId], references: [id])
+  deliverables   Deliverable[]
+  tasks          Task[]
+  workflows      ProductionWorkflow[]
+}
+
+model Deliverable {
+  id           String   @id @default(cuid())
+  engagementId String
+  title        String
+  type         String
+  status       String   @default("draft") // draft, in_review, approved, revision_requested
+  currentVersion Int    @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  engagement Engagement          @relation(fields: [engagementId], references: [id])
+  versions   DeliverableVersion[]
+  approvals  Approval[]
+}
+
+model DeliverableVersion {
+  id            String   @id @default(cuid())
+  deliverableId String
+  versionNumber Int
+  content       String
+  changeNotes   String   @default("")
+  generatedBy   String   @default("ai") // ai, human, hybrid
+  qualityScore  Float?
+  createdAt     DateTime @default(now())
+
+  deliverable Deliverable @relation(fields: [deliverableId], references: [id])
+}
+
+model ProductionWorkflow {
+  id           String   @id @default(cuid())
+  engagementId String
+  name         String
+  type         String
+  status       String   @default("pending") // pending, running, completed, failed
+  inputData    String   @default("{}")
+  outputData   String   @default("{}")
+  duration     Int?     // seconds
+  cost         Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  engagement Engagement @relation(fields: [engagementId], references: [id])
+}
+
+model Task {
+  id           String   @id @default(cuid())
+  engagementId String
+  title        String
+  description  String   @default("")
+  status       String   @default("pending") // pending, in_progress, blocked, completed
+  priority     String   @default("medium") // low, medium, high, urgent
+  assignedTo   String   @default("ai") // ai, operator, contractor
+  slaDeadline  DateTime?
+  completedAt  DateTime?
+  autoEscalated Boolean @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  engagement Engagement @relation(fields: [engagementId], references: [id])
+}
+
+model Approval {
+  id            String   @id @default(cuid())
+  deliverableId String
+  reviewerRole  String   // client-admin, client-reviewer, founder-operator
+  status        String   @default("pending") // pending, approved, revision_requested
+  feedback      String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  deliverable Deliverable @relation(fields: [deliverableId], references: [id])
+}
+
+model ClientMessage {
+  id         String   @id @default(cuid())
+  clientId   String
+  direction  String   // inbound, outbound
+  channel    String   @default("email") // email, slack, portal
+  subject    String   @default("")
+  body       String
+  sentiment  Float?
+  actionItems String  @default("[]")
+  isDraft    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+model KnowledgeAsset {
+  id        String   @id @default(cuid())
+  clientId  String
+  title     String
+  type      String   // brand_guide, style_doc, reference, brief
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+model Invoice {
+  id         String   @id @default(cuid())
+  clientId   String
+  amount     Float
+  status     String   @default("draft") // draft, sent, paid, overdue
+  dueDate    DateTime
+  paidAt     DateTime?
+  lineItems  String   @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  clientId   String?
+  action     String
+  entity     String
+  entityId   String
+  details    String   @default("")
+  performedBy String  @default("system")
+  createdAt  DateTime @default(now())
+
+  client Client? @relation(fields: [clientId], references: [id])
+}
+
+model MarginMetric {
+  id                    String   @id @default(cuid())
+  period                String
+  totalRevenue          Float
+  totalCost             Float
+  aiWorkflowRevenue     Float
+  humanOversightHours   Float
+  revenuePerAiWorkflow  Float
+  revenuePerHumanHour   Float
+  avgRevisionCount      Float
+  avgTurnaroundHours    Float
+  clientSatisfaction    Float
+  activeEngagements     Int
+  completedEngagements  Int
+  createdAt             DateTime @default(now())
+}

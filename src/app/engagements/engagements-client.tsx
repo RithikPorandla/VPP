@@ -2,6 +2,7 @@
 
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { Modal } from "@/components/modal";
 import { formatCurrency, getInitials, formatPercent, timeAgo } from "@/lib/utils";
 import {
   Calendar,
@@ -13,15 +14,41 @@ import {
   ChevronUp,
   DollarSign,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface Props {
   engagements: any[];
 }
 
-export function EngagementsClient({ engagements }: Props) {
+const emptyEngagement = {
+  clientId: "",
+  serviceProductId: "",
+  status: "proposal",
+  dueDate: "",
+  totalRevenue: "",
+  totalCost: "",
+  notes: "",
+};
+
+export function EngagementsClient({ engagements: initial }: Props) {
+  const [engagements, setEngagements] = useState(initial);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyEngagement);
+  const [saving, setSaving] = useState(false);
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [servicesList, setServicesList] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/clients").then((r) => r.json()).then(setClientsList);
+    fetch("/api/services").then((r) => r.json()).then(setServicesList);
+  }, []);
+
+  const refreshEngagements = useCallback(async () => {
+    const res = await fetch("/api/engagements");
+    setEngagements(await res.json());
+  }, []);
 
   const filtered =
     filter === "all"
@@ -36,13 +63,59 @@ export function EngagementsClient({ engagements }: Props) {
     {}
   );
 
+  const openAdd = () => {
+    setForm(emptyEngagement);
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/engagements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      await refreshEngagements();
+      setShowForm(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatusChange = async (engId: string, newStatus: string) => {
+    await fetch("/api/engagements", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: engId, status: newStatus }),
+    });
+    await refreshEngagements();
+  };
+
+  const updateField = (field: string, value: string) => {
+    setForm((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === "serviceProductId") {
+        const svc = servicesList.find((s: any) => s.id === value);
+        if (svc) {
+          updated.totalRevenue = String(svc.price);
+          updated.totalCost = String(svc.costEstimate);
+        }
+      }
+      return updated;
+    });
+  };
+
   return (
     <div className="p-8 space-y-8">
       <PageHeader
         title="Engagements"
         description="Track all client engagements from proposal to completion"
         actions={
-          <button className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700">
+          <button
+            onClick={openAdd}
+            className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
+          >
             New Engagement
           </button>
         }
@@ -144,6 +217,28 @@ export function EngagementsClient({ engagements }: Props) {
                   {eng.notes && (
                     <p className="text-sm text-gray-600 italic">{eng.notes}</p>
                   )}
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600">Update Status:</span>
+                    {["proposal", "active", "in_review", "completed", "cancelled"].map(
+                      (s) => (
+                        <button
+                          key={s}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStatusChange(eng.id, s);
+                          }}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                            eng.status === s
+                              ? "bg-primary-100 text-primary-700"
+                              : "text-gray-500 hover:bg-gray-100"
+                          }`}
+                        >
+                          {s.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </button>
+                      )
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     <div className="rounded-lg bg-gray-50 p-3">
@@ -285,6 +380,115 @@ export function EngagementsClient({ engagements }: Props) {
           );
         })}
       </div>
+
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title="New Engagement"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Client</label>
+              <select
+                value={form.clientId}
+                onChange={(e) => updateField("clientId", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="">Select client...</option>
+                {clientsList.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Service</label>
+              <select
+                value={form.serviceProductId}
+                onChange={(e) => updateField("serviceProductId", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="">Select service...</option>
+                {servicesList.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} — {formatCurrency(s.price)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Due Date</label>
+              <input
+                type="date"
+                value={form.dueDate}
+                onChange={(e) => updateField("dueDate", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Status</label>
+              <select
+                value={form.status}
+                onChange={(e) => updateField("status", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="proposal">Proposal</option>
+                <option value="active">Active</option>
+                <option value="in_review">In Review</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Revenue ($)</label>
+              <input
+                type="number"
+                value={form.totalRevenue}
+                onChange={(e) => updateField("totalRevenue", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Estimated Cost ($)</label>
+              <input
+                type="number"
+                value={form.totalCost}
+                onChange={(e) => updateField("totalCost", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => updateField("notes", e.target.value)}
+              rows={2}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => setShowForm(false)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.clientId || !form.serviceProductId || !form.dueDate}
+              className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700 disabled:opacity-50"
+            >
+              {saving ? "Creating..." : "Create Engagement"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

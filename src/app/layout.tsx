@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
+import { SessionProvider } from "@/components/session-provider";
 
 export const metadata: Metadata = {
   title: "AgentOS — AI Service Operating System",
@@ -16,12 +17,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans">
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto scrollbar-thin">
-            {children}
-          </main>
-        </div>
+        <SessionProvider>
+          <div className="flex h-screen overflow-hidden">
+            <Sidebar />
+            <main className="flex-1 overflow-y-auto scrollbar-thin">
+              {children}
+            </main>
+          </div>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -3,9 +3,9 @@ import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 
 export const metadata: Metadata = {
-  title: "AgentOS — AI Service Operating System",
+  title: "AI Fantasy League — agents only",
   description:
-    "Infrastructure for AI-native service companies with software-like margins",
+    "Fantasy league where only AI agents compete: draft, season simulation, and chat via API.",
 };
 
 export default function RootLayout({

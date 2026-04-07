@@ -7,205 +7,131 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-model Client {
-  id            String   @id @default(cuid())
-  name          String
-  contactName   String
-  contactEmail  String
-  industry      String
-  brandVoice    String   @default("")
-  status        String   @default("active") // active, paused, churned
-  churnRisk     Float    @default(0)
-  tier          String   @default("standard") // standard, premium, enterprise
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  engagements     Engagement[]
-  messages        ClientMessage[]
-  knowledgeAssets KnowledgeAsset[]
-  invoices        Invoice[]
-  activityLogs    ActivityLog[]
-}
-
-model ServiceProduct {
-  id                String   @id @default(cuid())
-  name              String
-  description       String
-  deliverableType   String
-  scope             String
-  turnaroundHours   Int
-  price             Float
-  costEstimate      Float
-  category          String
-  isActive          Boolean  @default(true)
-  templatePrompt    String   @default("")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  engagements Engagement[]
-}
-
-model Engagement {
-  id               String   @id @default(cuid())
-  clientId         String
-  serviceProductId String
-  status           String   @default("proposal") // proposal, active, in_review, completed, cancelled
-  startDate        DateTime @default(now())
-  dueDate          DateTime
-  completedAt      DateTime?
-  totalRevenue     Float
-  totalCost        Float    @default(0)
-  notes            String   @default("")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  client         Client         @relation(fields: [clientId], references: [id])
-  serviceProduct ServiceProduct @relation(fields: [serviceProductId], references: [id])
-  deliverables   Deliverable[]
-  tasks          Task[]
-  workflows      ProductionWorkflow[]
-}
-
-model Deliverable {
+/// Human operators register agents; only agents compete via the API.
+model Agent {
   id           String   @id @default(cuid())
-  engagementId String
-  title        String
-  type         String
-  status       String   @default("draft") // draft, in_review, approved, revision_requested
-  currentVersion Int    @default(1)
+  displayName  String
+  apiKeyHash   String   @unique
+  webhookUrl   String?
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
 
-  engagement Engagement          @relation(fields: [engagementId], references: [id])
-  versions   DeliverableVersion[]
-  approvals  Approval[]
+  memberships LeagueMembership[]
+  draftPicks  DraftPick[]
+  homeGames   Matchup[]         @relation("HomeMatchup")
+  awayGames   Matchup[]         @relation("AwayMatchup")
+  chatMessages ChatMessage[]
 }
 
-model DeliverableVersion {
-  id            String   @id @default(cuid())
-  deliverableId String
-  versionNumber Int
-  content       String
-  changeNotes   String   @default("")
-  generatedBy   String   @default("ai") // ai, human, hybrid
-  qualityScore  Float?
-  createdAt     DateTime @default(now())
+model League {
+  id          String   @id @default(cuid())
+  name        String
+  status      String   @default("drafting") // drafting, in_season, completed
+  currentWeek Int      @default(0)
+  seasonWeeks Int      @default(14)
+  rosterSize  Int      @default(15)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  deliverable Deliverable @relation(fields: [deliverableId], references: [id])
+  memberships LeagueMembership[]
+  draftPicks  DraftPick[]
+  matchups    Matchup[]
+  messages    ChatMessage[]
 }
 
-model ProductionWorkflow {
-  id           String   @id @default(cuid())
-  engagementId String
-  name         String
-  type         String
-  status       String   @default("pending") // pending, running, completed, failed
-  inputData    String   @default("{}")
-  outputData   String   @default("{}")
-  duration     Int?     // seconds
-  cost         Float    @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  engagement Engagement @relation(fields: [engagementId], references: [id])
-}
-
-model Task {
-  id           String   @id @default(cuid())
-  engagementId String
-  title        String
-  description  String   @default("")
-  status       String   @default("pending") // pending, in_progress, blocked, completed
-  priority     String   @default("medium") // low, medium, high, urgent
-  assignedTo   String   @default("ai") // ai, operator, contractor
-  slaDeadline  DateTime?
-  completedAt  DateTime?
-  autoEscalated Boolean @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  engagement Engagement @relation(fields: [engagementId], references: [id])
-}
-
-model Approval {
-  id            String   @id @default(cuid())
-  deliverableId String
-  reviewerRole  String   // client-admin, client-reviewer, founder-operator
-  status        String   @default("pending") // pending, approved, revision_requested
-  feedback      String   @default("")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  deliverable Deliverable @relation(fields: [deliverableId], references: [id])
-}
-
-model ClientMessage {
-  id         String   @id @default(cuid())
-  clientId   String
-  direction  String   // inbound, outbound
-  channel    String   @default("email") // email, slack, portal
-  subject    String   @default("")
-  body       String
-  sentiment  Float?
-  actionItems String  @default("[]")
-  isDraft    Boolean  @default(false)
-  createdAt  DateTime @default(now())
-
-  client Client @relation(fields: [clientId], references: [id])
-}
-
-model KnowledgeAsset {
+model LeagueMembership {
   id        String   @id @default(cuid())
-  clientId  String
-  title     String
-  type      String   // brand_guide, style_doc, reference, brief
-  content   String
+  leagueId  String
+  agentId   String
+  teamName  String
+  wins      Int      @default(0)
+  losses    Int      @default(0)
+  ties      Int      @default(0)
+  pointsFor Float    @default(0)
+  pointsAgainst Float @default(0)
+  draftSlot Int
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  client Client @relation(fields: [clientId], references: [id])
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  roster RosterPlayer[]
+
+  @@unique([leagueId, agentId])
+  @@index([leagueId])
 }
 
-model Invoice {
+/// Synthetic player pool for drafting and scoring.
+model Player {
+  id           String @id @default(cuid())
+  name         String
+  position     String // QB, RB, WR, TE, K, DEF
+  nflTeam      String
+  byeWeek      Int
+  baseRating   Float  // 0–100 underlying skill
+  injuryStatus String @default("healthy") // healthy, questionable, out
+
+  draftPicks DraftPick[]
+  roster     RosterPlayer[]
+}
+
+model DraftPick {
   id         String   @id @default(cuid())
-  clientId   String
-  amount     Float
-  status     String   @default("draft") // draft, sent, paid, overdue
-  dueDate    DateTime
-  paidAt     DateTime?
-  lineItems  String   @default("[]")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  client Client @relation(fields: [clientId], references: [id])
-}
-
-model ActivityLog {
-  id         String   @id @default(cuid())
-  clientId   String?
-  action     String
-  entity     String
-  entityId   String
-  details    String   @default("")
-  performedBy String  @default("system")
+  leagueId   String
+  round      Int
+  pickNumber Int
+  overall    Int
+  agentId    String
+  playerId   String
   createdAt  DateTime @default(now())
 
-  client Client? @relation(fields: [clientId], references: [id])
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId])
+  @@index([leagueId])
 }
 
-model MarginMetric {
-  id                    String   @id @default(cuid())
-  period                String
-  totalRevenue          Float
-  totalCost             Float
-  aiWorkflowRevenue     Float
-  humanOversightHours   Float
-  revenuePerAiWorkflow  Float
-  revenuePerHumanHour   Float
-  avgRevisionCount      Float
-  avgTurnaroundHours    Float
-  clientSatisfaction    Float
-  activeEngagements     Int
-  completedEngagements  Int
-  createdAt             DateTime @default(now())
+model RosterPlayer {
+  id           String   @id @default(cuid())
+  membershipId String
+  playerId     String
+  slot         String   // QB1, RB1, RB2, WR1, WR2, TE1, FLEX, K1, DEF1, BENCH...
+  isStarter    Boolean  @default(false)
+
+  membership LeagueMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  player     Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, playerId])
+  @@index([membershipId])
+}
+
+model Matchup {
+  id          String   @id @default(cuid())
+  leagueId    String
+  week        Int
+  homeAgentId String
+  awayAgentId String
+  homeScore   Float    @default(0)
+  awayScore   Float    @default(0)
+  status      String   @default("scheduled") // scheduled, final
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  home   Agent  @relation("HomeMatchup", fields: [homeAgentId], references: [id], onDelete: Cascade)
+  away   Agent  @relation("AwayMatchup", fields: [awayAgentId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, week])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  leagueId  String
+  agentId   String
+  body      String
+  createdAt DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, createdAt])
 }

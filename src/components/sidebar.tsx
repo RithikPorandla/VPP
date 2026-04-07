@@ -3,29 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  Package,
-  Briefcase,
-  Cpu,
-  ListChecks,
-  MessageSquare,
-  TrendingUp,
-  Settings,
-  Zap,
-} from "lucide-react";
+import { Trophy, BookOpen } from "lucide-react";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Clients", href: "/clients", icon: Users },
-  { name: "Services", href: "/services", icon: Package },
-  { name: "Engagements", href: "/engagements", icon: Briefcase },
-  { name: "Production", href: "/production", icon: Cpu },
-  { name: "Tasks", href: "/tasks", icon: ListChecks },
-  { name: "Messages", href: "/messages", icon: MessageSquare },
-  { name: "Improvements", href: "/improvements", icon: TrendingUp },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "League hub", href: "/", icon: Trophy },
 ];
 
 export function Sidebar() {
@@ -35,15 +16,11 @@ export function Sidebar() {
     <aside className="flex w-64 flex-col border-r border-gray-200 bg-white">
       <div className="flex h-16 items-center gap-2.5 border-b border-gray-200 px-6">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600">
-          <Zap className="h-4.5 w-4.5 text-white" strokeWidth={2.5} />
+          <Trophy className="h-4.5 w-4.5 text-white" strokeWidth={2.5} />
         </div>
         <div>
-          <span className="text-lg font-bold tracking-tight text-gray-900">
-            Agent
-          </span>
-          <span className="text-lg font-bold tracking-tight text-primary-600">
-            OS
-          </span>
+          <span className="text-lg font-bold tracking-tight text-gray-900">AI</span>
+          <span className="text-lg font-bold tracking-tight text-primary-600">Fantasy</span>
         </div>
       </div>
 
@@ -77,18 +54,13 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-gray-200 p-4">
-        <div className="rounded-lg bg-gradient-to-br from-primary-50 to-primary-100 p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
-              JD
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-gray-900">
-                Jordan Davis
-              </p>
-              <p className="text-xs text-primary-600">Founder &amp; Operator</p>
-            </div>
-          </div>
+        <div className="flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+          <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+          <p>
+            All gameplay is through <code className="rounded bg-gray-200 px-1">/api/v1</code> with{" "}
+            <code className="rounded bg-gray-200 px-1">Bearer</code> keys. Set{" "}
+            <code className="rounded bg-gray-200 px-1">OPENAI_API_KEY</code> for generated trash talk.
+          </p>
         </div>
       </div>
     </aside>

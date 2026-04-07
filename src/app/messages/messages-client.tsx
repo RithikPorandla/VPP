@@ -1,32 +1,53 @@
 "use client";
 
 import { PageHeader } from "@/components/page-header";
+import { Modal } from "@/components/modal";
 import { getInitials, timeAgo } from "@/lib/utils";
 import {
   Mail,
   MessageSquare,
   ArrowDownLeft,
   ArrowUpRight,
-  AlertCircle,
   Smile,
   Meh,
   Frown,
   ListChecks,
   Hash,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface Props {
   messages: any[];
 }
 
-export function MessagesClient({ messages }: Props) {
+export function MessagesClient({ messages: initial }: Props) {
+  const [messages, setMessages] = useState(initial);
   const [filter, setFilter] = useState("all");
   const [selectedClient, setSelectedClient] = useState("all");
+  const [showCompose, setShowCompose] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
+  const [composeForm, setComposeForm] = useState({
+    clientId: "",
+    channel: "email",
+    subject: "",
+    body: "",
+  });
 
-  const clients = Array.from(
+  const messageClients = Array.from(
     new Map(messages.map((m) => [m.clientId, m.client])).values()
   );
+
+  useEffect(() => {
+    fetch("/api/clients")
+      .then((r) => r.json())
+      .then(setClients);
+  }, []);
+
+  const refreshMessages = useCallback(async () => {
+    const res = await fetch("/api/messages");
+    setMessages(await res.json());
+  }, []);
 
   const filtered = messages
     .filter((m) => filter === "all" || m.direction === filter)
@@ -53,13 +74,38 @@ export function MessagesClient({ messages }: Props) {
     }
   };
 
+  const handleSend = async () => {
+    setSaving(true);
+    try {
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(composeForm),
+      });
+      await refreshMessages();
+      setShowCompose(false);
+      setComposeForm({ clientId: "", channel: "email", subject: "", body: "" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sentimentMessages = messages.filter((m) => m.sentiment !== null);
+  const avgSentiment =
+    sentimentMessages.length > 0
+      ? sentimentMessages.reduce((s, m) => s + m.sentiment, 0) / sentimentMessages.length
+      : 0;
+
   return (
     <div className="p-8 space-y-8">
       <PageHeader
         title="Client Communication"
         description="AI-assisted messaging with sentiment analysis and action item extraction"
         actions={
-          <button className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700">
+          <button
+            onClick={() => setShowCompose(true)}
+            className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
+          >
             Compose
           </button>
         }
@@ -85,10 +131,7 @@ export function MessagesClient({ messages }: Props) {
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <p className="text-sm font-medium text-gray-500">Avg Sentiment</p>
           <p className="mt-2 text-3xl font-bold text-gray-900">
-            {(
-              messages.filter((m) => m.sentiment !== null).reduce((s, m) => s + m.sentiment, 0) /
-              messages.filter((m) => m.sentiment !== null).length
-            ).toFixed(2)}
+            {avgSentiment.toFixed(2)}
           </p>
           <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
             <Smile className="h-3.5 w-3.5 text-emerald-500" />
@@ -119,7 +162,7 @@ export function MessagesClient({ messages }: Props) {
           className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 focus:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-100"
         >
           <option value="all">All Clients</option>
-          {clients.map((c: any) => (
+          {messageClients.map((c: any) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -238,6 +281,88 @@ export function MessagesClient({ messages }: Props) {
           );
         })}
       </div>
+
+      <Modal
+        open={showCompose}
+        onClose={() => setShowCompose(false)}
+        title="Compose Message"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Client</label>
+              <select
+                value={composeForm.clientId}
+                onChange={(e) =>
+                  setComposeForm((prev) => ({ ...prev, clientId: e.target.value }))
+                }
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="">Select client...</option>
+                {clients.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Channel</label>
+              <select
+                value={composeForm.channel}
+                onChange={(e) =>
+                  setComposeForm((prev) => ({ ...prev, channel: e.target.value }))
+                }
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="email">Email</option>
+                <option value="slack">Slack</option>
+                <option value="portal">Portal</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Subject</label>
+            <input
+              type="text"
+              value={composeForm.subject}
+              onChange={(e) =>
+                setComposeForm((prev) => ({ ...prev, subject: e.target.value }))
+              }
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              placeholder="Message subject..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Message</label>
+            <textarea
+              value={composeForm.body}
+              onChange={(e) =>
+                setComposeForm((prev) => ({ ...prev, body: e.target.value }))
+              }
+              rows={5}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              placeholder="Type your message..."
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => setShowCompose(false)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={saving || !composeForm.clientId || !composeForm.body}
+              className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700 disabled:opacity-50"
+            >
+              {saving ? "Sending..." : "Send Message"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

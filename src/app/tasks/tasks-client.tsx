@@ -3,6 +3,7 @@
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { StatCard } from "@/components/stat-card";
+import { Modal } from "@/components/modal";
 import { getInitials, timeAgo } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -12,16 +13,46 @@ import {
   Cpu,
   Wrench,
   Timer,
+  Pencil,
+  Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface Props {
   tasks: any[];
 }
 
-export function TasksClient({ tasks }: Props) {
+const emptyTask = {
+  engagementId: "",
+  title: "",
+  description: "",
+  status: "pending",
+  priority: "medium",
+  assignedTo: "ai",
+  slaDeadline: "",
+};
+
+export function TasksClient({ tasks: initial }: Props) {
+  const [tasks, setTasks] = useState(initial);
   const [filter, setFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
+  const [showForm, setShowForm] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [form, setForm] = useState(emptyTask);
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [engagements, setEngagements] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/engagements")
+      .then((r) => r.json())
+      .then(setEngagements);
+  }, []);
+
+  const refreshTasks = useCallback(async () => {
+    const res = await fetch("/api/tasks");
+    setTasks(await res.json());
+  }, []);
 
   const filtered = tasks
     .filter((t) => filter === "all" || t.status === filter)
@@ -56,11 +87,74 @@ export function TasksClient({ tasks }: Props) {
     }
   };
 
+  const openAdd = () => {
+    setEditingTask(null);
+    setForm(emptyTask);
+    setShowForm(true);
+  };
+
+  const openEdit = (task: any) => {
+    setEditingTask(task);
+    setForm({
+      engagementId: task.engagementId,
+      title: task.title,
+      description: task.description || "",
+      status: task.status,
+      priority: task.priority,
+      assignedTo: task.assignedTo,
+      slaDeadline: task.slaDeadline
+        ? new Date(task.slaDeadline).toISOString().slice(0, 16)
+        : "",
+    });
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (editingTask) {
+        await fetch("/api/tasks", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingTask.id, ...form }),
+        });
+      } else {
+        await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      }
+      await refreshTasks();
+      setShowForm(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/tasks?id=${id}`, { method: "DELETE" });
+    await refreshTasks();
+    setDeleteConfirm(null);
+  };
+
+  const updateField = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
   return (
     <div className="p-8 space-y-8">
       <PageHeader
         title="Task Board"
         description="SLA-tracked tasks with auto-escalation and smart prioritization"
+        actions={
+          <button
+            onClick={openAdd}
+            className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
+          >
+            New Task
+          </button>
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -199,19 +293,35 @@ export function TasksClient({ tasks }: Props) {
                       </p>
                     )}
                     <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-600">
-                          {getInitials(task.engagement.client.name)}
-                        </div>
-                        {task.engagement.client.name}
-                      </div>
-                      <span className="text-gray-300">·</span>
-                      <span>{task.engagement.serviceProduct.name}</span>
+                      {task.engagement && (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-600">
+                              {getInitials(task.engagement.client.name)}
+                            </div>
+                            {task.engagement.client.name}
+                          </div>
+                          <span className="text-gray-300">·</span>
+                          <span>{task.engagement.serviceProduct.name}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => openEdit(task)}
+                    className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm(task.id)}
+                    className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                   <div className="flex items-center gap-1.5 text-sm">
                     {getAssigneeIcon(task.assignedTo)}
                     <span className="text-xs font-medium text-gray-600 capitalize">
@@ -250,6 +360,139 @@ export function TasksClient({ tasks }: Props) {
           );
         })}
       </div>
+
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editingTask ? "Edit Task" : "New Task"}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Title</label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => updateField("title", e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              placeholder="Task title..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Engagement</label>
+            <select
+              value={form.engagementId}
+              onChange={(e) => updateField("engagementId", e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            >
+              <option value="">Select engagement...</option>
+              {engagements.map((eng: any) => (
+                <option key={eng.id} value={eng.id}>
+                  {eng.client.name} — {eng.serviceProduct.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => updateField("description", e.target.value)}
+              rows={2}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Priority</label>
+              <select
+                value={form.priority}
+                onChange={(e) => updateField("priority", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Assigned To</label>
+              <select
+                value={form.assignedTo}
+                onChange={(e) => updateField("assignedTo", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="ai">AI</option>
+                <option value="operator">Operator</option>
+                <option value="contractor">Contractor</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Status</label>
+              <select
+                value={form.status}
+                onChange={(e) => updateField("status", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">SLA Deadline</label>
+            <input
+              type="datetime-local"
+              value={form.slaDeadline}
+              onChange={(e) => updateField("slaDeadline", e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => setShowForm(false)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.title || !form.engagementId}
+              className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : editingTask ? "Update Task" : "Create Task"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        title="Delete Task"
+        size="sm"
+      >
+        <p className="text-sm text-gray-600">
+          Are you sure you want to delete this task?
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={() => setDeleteConfirm(null)}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
